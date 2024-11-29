@@ -95,6 +95,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          action: 'validateFacial', // Adicionado o parâmetro "action"
           cpf,
           image: capturedImageBase64,
         }),
@@ -114,7 +115,7 @@
     } catch (err) {
       status.textContent = "Erro inesperado ao processar a validação.";
       status.className = "error";
-      console.error(err);
+      console.log(err);
     }
   });
 </script>

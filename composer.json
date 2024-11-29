@@ -3,6 +3,7 @@
         "pear/http_request2": "^2.6",
       "ext-curl": "*",
         "intervention/image": "^2.7",
-        "guzzlehttp/guzzle": "^7.9"
+        "guzzlehttp/guzzle": "^7.9",
+      "ext-json": "*"
     }
 }
