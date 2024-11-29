@@ -6,7 +6,7 @@ use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;
 
 define('LOGIN_URL', 'http://34.203.73.5:7000/login');
-define('VALIDATION_URL', 'http://34.203.73.5:7000/aws/face/compares');
+define('VALIDATION_URL', 'https://gateway.apiserpro.serpro.gov.br/datavalid-demonstracao/v2/validate/pf-face');
 
 // Credenciais de login
 define('USERNAME', 'cafe_ead');
@@ -15,7 +15,11 @@ define('PASSWORD', "d3s4N8O'08w)");
 // Função para obter o token de autenticação
 function getAuthToken()
 {
-    $client = new Client();
+    $client = new GuzzleHttp\Client([
+        'verify' => false, // Desativa a verificação SSL
+    ]);
+
+
 
     try {
         $response = $client->post(LOGIN_URL, [
@@ -38,21 +42,24 @@ function getAuthToken()
     }
 }
 
-// Função para enviar as imagens para validação
-function validateImages($firstImageBase64, $secondImageBase64, $authToken)
+// Função para enviar a imagem para validação
+function validateImage($cpf, $imageBase64, $authToken)
 {
     $client = new Client();
 
     try {
         $response = $client->post(VALIDATION_URL, [
             'headers' => [
-                'Accept' => '*/*',
                 'Authorization' => 'Bearer ' . $authToken,
                 'Content-Type' => 'application/json'
             ],
             'json' => [
-                'firstImage' => $firstImageBase64,
-                'secondImage' => $secondImageBase64
+                'key' => [
+                    'cpf' => $cpf
+                ],
+                'answer' => [
+                    'biometria_face' => $imageBase64
+                ]
             ]
         ]);
 
@@ -65,8 +72,8 @@ function validateImages($firstImageBase64, $secondImageBase64, $authToken)
 // Receber dados do frontend
 $data = json_decode(file_get_contents('php://input'), true);
 
-if (!isset($data['firstImage']) || !isset($data['secondImage'])) {
-    echo json_encode(['success' => false, 'message' => 'Imagens não fornecidas.']);
+if (!isset($data['cpf']) || !isset($data['image'])) {
+    echo json_encode(['success' => false, 'message' => 'CPF ou imagem não fornecidos.']);
     exit;
 }
 
@@ -80,11 +87,11 @@ if (isset($authResponse['error'])) {
 
 $authToken = $authResponse;
 
-// Validar as imagens
-$validationResponse = validateImages($data['firstImage'], $data['secondImage'], $authToken);
+// Validar a imagem
+$validationResponse = validateImage($data['cpf'], $data['image'], $authToken);
 
 if (isset($validationResponse['error'])) {
-    echo json_encode(['success' => false, 'message' => 'Erro ao validar imagens.', 'details' => $validationResponse['message']]);
+    echo json_encode(['success' => false, 'message' => 'Erro ao validar imagem.', 'details' => $validationResponse['message']]);
     exit;
 }
 
