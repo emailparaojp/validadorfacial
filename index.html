@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Validação Facial</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 20px;
+    }
+    video, canvas {
+      display: block;
+      margin: 10px auto;
+      border: 1px solid #ccc;
+      border-radius: 10px;
+      width: 300px;
+      height: 300px;
+    }
+    button {
+      margin: 10px;
+      padding: 10px;
+      font-size: 16px;
+    }
+    #status {
+      margin: 20px;
+      font-weight: bold;
+    }
+    .error {
+      color: red;
+    }
+    .success {
+      color: green;
+    }
+  </style>
+</head>
+<body>
+<h1>Validação Facial</h1>
+<video id="video" autoplay></video>
+<canvas id="canvas" style="display: none;"></canvas>
+<button id="capture1">Capturar Foto 1</button>
+<button id="capture2" disabled>Capturar Foto 2</button>
+<button id="validate" disabled>Validar</button>
+<p id="status"></p>
+
+<script>
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+  const capture1Button = document.getElementById('capture1');
+  const capture2Button = document.getElementById('capture2');
+  const validateButton = document.getElementById('validate');
+  const status = document.getElementById('status');
+
+  let firstImageBase64 = null;
+  let secondImageBase64 = null;
+
+  // Ativar a câmera
+  navigator.mediaDevices.getUserMedia({ video: true })
+          .then(stream => {
+            video.srcObject = stream;
+          })
+          .catch(() => {
+            status.textContent = "Erro ao acessar câmera. Verifique as permissões.";
+            status.className = "error";
+          });
+
+  // Função para capturar imagem e converter para Base64
+  function captureImage() {
+    const context = canvas.getContext('2d');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg').split(',')[1]; // Captura em formato JPEG
+  }
+
+  // Capturar a primeira foto
+  capture1Button.addEventListener('click', () => {
+    firstImageBase64 = captureImage();
+    status.textContent = "Foto 1 capturada!";
+    status.className = "success";
+    capture2Button.disabled = false;
+    capture1Button.disabled = true;
+  });
+
+  // Capturar a segunda foto
+  capture2Button.addEventListener('click', () => {
+    secondImageBase64 = captureImage();
+    status.textContent = "Foto 2 capturada!";
+    status.className = "success";
+    validateButton.disabled = false;
+    capture2Button.disabled = true;
+  });
+
+  // Submeter as fotos para validação
+  validateButton.addEventListener('click', async () => {
+    if (!firstImageBase64 || !secondImageBase64) {
+      status.textContent = "Capture as duas fotos antes de validar.";
+      status.className = "error";
+      return;
+    }
+
+    status.textContent = "Validando...";
+    status.className = "";
+
+    try {
+      const response = await fetch('process.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firstImage: firstImageBase64,
+          secondImage: secondImageBase64
+        })
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        status.textContent = "Validação concluída com sucesso!";
+        status.className = "success";
+        console.log(result.data);
+      } else {
+        status.textContent = `Erro: ${result.message}`;
+        status.className = "error";
+        console.error(result.details);
+      }
+    } catch (err) {
+      status.textContent = "Erro inesperado ao processar a validação.";
+      status.className = "error";
+      console.error(err);
+    }
+  });
+</script>
+</body>
+</html>
