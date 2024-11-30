@@ -70,12 +70,24 @@
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    capturedImageBase64 = canvas.toDataURL('image/jpeg').split(',')[1];
+    capturedImageBase64 = canvas.toDataURL('image/png').split(',')[1]; // Captura como PNG
     status.textContent = "Foto capturada!";
     status.className = "success";
   });
 
   // Submeter dados
+  const errorMessages = {
+    DV001: "LGPD: Dados de menor de idade. O Datavalid não valida dados de criança e adolescente.",
+    DV002: "Dados encontrados na base não atendem aos requisitos mínimos para validação.",
+    DV010: "CPF inválido. Verifique se há algo de errado ou incompleto no CPF enviado para validação.",
+    DV040: "Imagem da face não encontrada nas bases. O CPF utilizado na validação não possui cadastro de imagem da face na base de dados biométrica.",
+    DV041: "Não foi possível reconhecer a face na imagem enviada. Verifique se o rosto está claro, bem exposto e sem obstruções.",
+    DV042: "Tamanho da imagem da face inválido. Verifique os requisitos mínimos de tamanho da imagem (mínimo 250x250 pixels).",
+    DV045: "Qualidade baixa da imagem da face. Reenvie uma imagem mais nítida e bem iluminada.",
+    DV062: "Imagem da face não foi reconhecida como real na checagem de vivacidade.",
+    // Adicione mais códigos e mensagens conforme necessário...
+  };
+
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
 
@@ -95,7 +107,6 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'validateFacial', // Adicionado o parâmetro "action"
           cpf,
           image: capturedImageBase64,
         }),
@@ -104,20 +115,34 @@
       const result = await response.json();
 
       if (result.success) {
-        status.textContent = "Validação concluída com sucesso!";
+        status.textContent = `Validação concluída com sucesso! Similaridade: ${result.data.similarity || "N/A"}%`;
         status.className = "success";
         console.log(result.data);
       } else {
-        status.textContent = `Erro: ${result.message}`;
+        const errorCode = extractErrorCode(result.details?.message || "");
+        const errorMessage = errorMessages[errorCode] || "Erro desconhecido. Consulte a documentação da API.";
+
+        status.textContent = `Erro: ${errorMessage} (Código: ${errorCode})`;
         status.className = "error";
-        console.error(result.details);
+        console.error(`Detalhes do erro: ${JSON.stringify(result.details, null, 2)}`);
       }
     } catch (err) {
       status.textContent = "Erro inesperado ao processar a validação.";
       status.className = "error";
-      console.log(err);
+      console.error(err);
     }
   });
+
+  // Função para extrair o código de erro do JSON interno na mensagem
+  function extractErrorCode(message) {
+    try {
+      const parsedMessage = JSON.parse(message);
+      return parsedMessage.code || null;
+    } catch (e) {
+      return null; // Retorna null caso a mensagem não seja um JSON válido
+    }
+  }
+
 </script>
 </body>
 </html>
