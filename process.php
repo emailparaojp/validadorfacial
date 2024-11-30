@@ -10,8 +10,8 @@ const LOGIN_URL = 'http://34.203.73.5:7000/login';
 const VALIDATION_URL = 'http://34.203.73.5:7000/serpro/face/compares';
 
 // Credenciais de login
-const USERNAME = '';
-const PASSWORD = ")";
+const USERNAME = '#';
+const PASSWORD = "#";
 
 // Função para obter o token de autenticação
 function getAuthToken()
@@ -80,7 +80,6 @@ function validateImage($cpf, $imageBase64, $authToken)
         $statusCode = $response ? $response->getStatusCode() : 'Sem código de status';
         $errorDetails = $response ? json_decode($response->getBody()->getContents(), true) : null;
 
-        // Decodificar mensagem de erro detalhada
         $apiMessage = json_decode(isset($errorDetails['message']) ? $errorDetails['message'] : '', true);
 
         return [
@@ -93,13 +92,36 @@ function validateImage($cpf, $imageBase64, $authToken)
     }
 }
 
+// Função para processar a imagem (redimensionar, validar formato e tamanho)
+function processImage($imageBase64)
+{
+    $imageData = base64_decode($imageBase64);
+    $image = Image::make($imageData);
+
+    if ($image->width() < 250 || $image->height() < 250) {
+        throw new Exception('A resolução mínima da imagem deve ser 250 x 250 pixels.');
+    }
+
+    $image->resize(750, 750, function ($constraint) {
+        $constraint->aspectRatio();
+        $constraint->upsize();
+    });
+
+    $image->encode('png');
+
+    if (strlen((string) $image) > 3 * 1024 * 1024) { // 3MB
+        throw new Exception('O tamanho da imagem não pode exceder 3 MB.');
+    }
+
+    return base64_encode((string) $image);
+}
+
 // Função para mapear códigos de erro para mensagens mais amigáveis
 function getErrorDescription($errorCode)
 {
     $errorDescriptions = [
         'DV040' => 'Imagem da face não encontrada nas bases. O CPF utilizado na validação não possui cadastro de imagem da face na base de dados biométrica.',
         'DV042' => 'Tamanho da imagem da face inválido. Verifique os requisitos mínimos de tamanho da imagem.',
-        // Adicione mais códigos de erro conforme necessário...
     ];
 
     return isset($errorDescriptions[$errorCode]) ? $errorDescriptions[$errorCode] : 'Erro desconhecido. Consulte a documentação para mais detalhes.';
@@ -113,14 +135,19 @@ if (!isset($data['cpf']) || !isset($data['image'])) {
     exit;
 }
 
-// Validar CPF
 $cpf = $data['cpf'];
 if (!preg_match('/^\d{11}$/', $cpf)) {
     echo json_encode(['success' => false, 'message' => 'CPF inválido. Certifique-se de que ele contém apenas números e 11 dígitos.']);
     exit;
 }
 
-// Obter o token de autenticação
+try {
+    $processedImageBase64 = processImage($data['image']);
+} catch (Exception $e) {
+    echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    exit;
+}
+
 $authResponse = getAuthToken();
 
 if (isset($authResponse['error'])) {
@@ -135,20 +162,19 @@ if (isset($authResponse['error'])) {
 
 $authToken = $authResponse;
 
-// Validar a imagem
-$validationResponse = validateImage($cpf, $data['image'], $authToken);
+$validationResponse = validateImage($cpf, $processedImageBase64, $authToken);
 
 if (isset($validationResponse['error'])) {
     echo json_encode([
         'success' => false,
         'message' => 'Erro ao validar a imagem.',
         'status_code' => $validationResponse['status_code'],
+        'description' => $validationResponse['description'],
         'details' => $validationResponse['details']
     ]);
     exit;
 }
 
-// Retornar o resultado da validação
 echo json_encode([
     'success' => true,
     'status_code' => $validationResponse['status_code'],
